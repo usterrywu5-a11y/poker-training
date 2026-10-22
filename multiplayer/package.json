@@ -1,0 +1,13 @@
+{
+  "name": "poker-multiplayer",
+  "version": "1.0.0",
+  "description": "德州撲克多人版伺服器核心（WebSocket + 牌局狀態機）",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test-engine.js && node test-integration.js && node test-disconnect.js && node test-ai.js && node test-ai-integration.js && node test-estimate.js && node test-phase5.js"
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# deploy artifacts
+/opt/poker-multiplayer/
+
+# logs & temp
+*.log
+*.tmp
+
+# os
+.DS_Store
+
+# debug scratch
+debug-*.js
