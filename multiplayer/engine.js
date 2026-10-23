@@ -396,6 +396,7 @@ function runShowdown(game, evs) {
   const table = game.board;
   game.sidePots = buildSidePots(game);
   const totals = {};
+  const contestedWinners = new Set(); // 憑牌力贏下「有競爭的池」的座位；退款不算贏家
   for (const pot of game.sidePots) {
     const contenders = pot.players.map(s => game.players[s]);
     let best = null, bestSeats = [];
@@ -407,9 +408,13 @@ function runShowdown(game, evs) {
     const share = Math.floor(pot.amount / bestSeats.length);
     for (const s of bestSeats) totals[s] = (totals[s] || 0) + share;
     totals[bestSeats[0]] += pot.amount % bestSeats.length;
+    // 只有「實際與他人競爭」的池才產生贏家；單人獨得的池 = 退還自己的錢（退款）
+    if (contenders.length >= 2) bestSeats.forEach(s => contestedWinners.add(s));
   }
-  const winners = [];
-  for (const s in totals) { game.players[+s].stack += totals[s]; winners.push({ seat: +s, amount: totals[s] }); }
+  // 退款照樣歸還，但 winners 只列「贏下有競爭的池」的玩家
+  for (const s in totals) game.players[+s].stack += totals[s];
+  const winSeats = contestedWinners.size ? [...contestedWinners] : Object.keys(totals);
+  const winners = winSeats.map(s => ({ seat: +s, amount: totals[s] }));
   game.winners = winners;
   game.phase = 'roundEnd';
   evs.push({ type: 'showdown', winners: winners.map(w => w.amount), board: game.board.slice() });
@@ -492,5 +497,5 @@ function snapshotFor(game, seat) {
 
 module.exports = {
   createGame, addPlayer, removePlayer, seatOf, startGame, act, snapshotFor,
-  startHand, buildSidePots, activePlayers, nextActionable, seededShuffle, STREETS, forceFold, aiAct,
+  startHand, buildSidePots, activePlayers, nextActionable, seededShuffle, STREETS, forceFold, aiAct, runShowdown,
 };
