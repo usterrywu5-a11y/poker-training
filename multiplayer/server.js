@@ -132,7 +132,7 @@ function maybeRunAI(room) {
   const seat = g.toActSeat;
   if (seat < 0) return;
   const p = g.players[seat];
-  if (!p || !p.isAI) return;
+  if (!p || !p.isAI || p.allin) return;
   if (room.aiTimers.has(seat)) return; // 已排程
   const delay = 500 + Math.random() * 500; // 0.5-1 秒
   const timer = setTimeout(() => {
@@ -140,7 +140,7 @@ function maybeRunAI(room) {
     const g2 = room.game;
     if (g2.phase !== 'betting' || g2.toActSeat !== seat) return;
     const p2 = g2.players[seat];
-    if (!p2 || !p2.isAI) return; // 真人已取回座位
+    if (!p2 || !p2.isAI || p2.allin) return; // 真人已取回座位或已全下
     const r = eng.aiAct(g2, seat);
     if (r.ok) {
       broadcast(room, { type: 'action', events: r.events, ai: true });
