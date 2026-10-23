@@ -18,7 +18,7 @@
   'use strict';
 
   const SUITC = ['♠', '♥', '♦', '♣'];
-  const RANKC = ['A', '2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K'];
+  const RANKC = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A']; // r=14=Ace(高) , r=2='2'(低)
   const STREETN = ['翻牌前', '翻牌', '轉牌', '河牌', '攤牌'];
   const CATN = ['高牌', '一對', '兩對', '三條', '順子', '同花', '葫蘆', '四條', '同花順'];
 
@@ -60,7 +60,7 @@
     const u = [...new Set(rs)].sort((a, b) => b - a);
     if (u.length === 5) {
       if (u[0] - u[4] === 4) { straight = true; hi = u[0]; }
-      else if (u.includes(14) && u[0] === 5 && u.includes(2) && u.includes(3) && u.includes(4)) { straight = true; hi = 5; }
+      else if (u[0] === 14 && u[1] === 5) { straight = true; hi = 5; } // A-2-3-4-5 輪盤（Ace 高，5 高順）
     }
     const cnt = {}; rs.forEach(r => cnt[r] = (cnt[r] || 0) + 1);
     const groups = Object.entries(cnt).map(([r, c]) => ({ r: +r, c })).sort((a, b) => b.c - a.c || b.r - a.r);
