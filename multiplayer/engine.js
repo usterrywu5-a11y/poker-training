@@ -37,8 +37,9 @@ function createGame(cfg) {
     players: [], dealerSeat: -1, smallBlindSeat: -1, bigBlindSeat: -1,
     startSeat: -1, lastAggressorSeat: -1,
     currentBet: 0, minRaise: 0, pot: 0, street: 0,
-    toActSeat: -1, winners: [], round: 1, sidePots: [],
-    _shuffle: defaultShuffle,
+        toActSeat: -1, winners: [], round: 1, sidePots: [],
+        handLog: [], // 教學實戰版：單一真人玩家的逐決策點檢討紀錄（每手重置）
+        _shuffle: defaultShuffle,
   };
   g._bindShuffle = (fn) => { g._shuffle = fn || defaultShuffle; return g; };
   return g;
@@ -107,6 +108,7 @@ function startGame(game) {
 function startHand(game) {
   game.dealerSeat = _after(game.dealerSeat, game.players.length);
   game.street = 0; game.board = []; game.pot = 0; game.winners = []; game.sidePots = [];
+  game.handLog = []; // 每手重置教學檢討紀錄
   for (const p of game.players) {
       p.folded = false; p.allin = (p.stack <= 0); p.hole = [];
       p.betThisStreet = 0; p.betTotal = 0; p.raiseCount = 0;
@@ -157,14 +159,73 @@ function postBlind(game, seat, amount) {
 }
 
 // ---------- 行動 ----------
-function act(game, seat, action, amount) {
-  if (game.phase !== 'betting') return { ok: false, error: '現在不是下注階段' };
+// 教學實戰版：為單一真人玩家在每個決策點記錄檢討資料。
+// eqPercent 用「對目前未蓋牌對手逐一手牌做蒙特卡羅估算後取平均」，
+// 因為伺服器端持有所有底牌，比 estimateVsRandom 更貼近真實勝率；
+// 若無未蓋牌對手（理論上不會發生）則退回 estimateVsRandom。
+function recordHandLog(game, seat, action, amount) {
   const p = game.players[seat];
-  if (!p || p.folded || p.allin) return { ok: false, error: '你無法行動' };
-  if (seat !== game.toActSeat) return { ok: false, error: '還沒輪到你' };
+  if (!p || p.isAI) return null; // 只記錄真人玩家
+  const need = Math.max(0, game.currentBet - p.betThisStreet);
+  const needPercent = need > 0 ? need / (game.pot + need) * 100 : 0;
 
-  const evs = [];
-  switch (action) {
+  // 對每個未蓋牌對手估算勝率後取平均
+  const opps = game.players.filter(x => !x.folded && x.seat !== seat && x.hole.length === 2);
+  let eqPercent = 0;
+  if (opps.length > 0) {
+    let sum = 0;
+    for (const o of opps) {
+      const e = core.estimate(p.hole, o.hole, game.board);
+      sum += (e.win + e.tie) / e.n * 100;
+    }
+    eqPercent = sum / opps.length;
+  } else {
+    const e = core.estimateVsRandom(p.hole, game.board, 1);
+    eqPercent = (e.win + e.tie) / e.n * 100;
+  }
+
+  // 判定 +EV / -EV：跟注/過牌用「勝率 ≥ 底池賠率」；
+  // 下注/加注屬主動進攻，需勝率明顯高於底池賠率（+15%）才算 +EV。
+  const isAggressive = action === 'bet' || action === 'raise' || action === 'allin';
+  const margin = isAggressive ? 15 : 0;
+  const verdict = eqPercent >= needPercent + margin ? '+EV' : '-EV';
+
+  // 中文教學建議
+  let advice;
+  if (action === 'fold') {
+    advice = verdict === '+EV' ? '牌力尚可，棄牌略保守，可考慮跟注' : '勝率不足，棄牌合理';
+  } else if (action === 'check') {
+    advice = verdict === '+EV' ? '過牌合理，保留底池' : '勝率偏低，過牌觀望即可';
+  } else if (action === 'call') {
+    advice = verdict === '+EV' ? '這注跟得划算（+EV）' : '勝率不足，傾向棄牌';
+  } else if (action === 'allin') {
+    advice = verdict === '+EV' ? '全下勝率充足，強勢推進' : '全下過於激進，勝率不足';
+  } else { // bet / raise
+    advice = verdict === '+EV' ? '牌強位置好，可加注' : '下注/加注略激進，勝率不足';
+  }
+
+  game.handLog.push({
+      street: game.street, seat, action,
+      amount: (action === 'call' || action === 'bet' || action === 'raise' || action === 'allin') ? (amount || 0) : 0,
+      currentBet: game.currentBet, betThisStreet: p.betThisStreet, pot: game.pot, need,
+      eqPercent: Math.round(eqPercent * 10) / 10,
+      needPercent: Math.round(needPercent * 10) / 10,
+      verdict, advice,
+    });
+    return game.handLog[game.handLog.length - 1];
+  }
+
+  function act(game, seat, action, amount) {
+    if (game.phase !== 'betting') return { ok: false, error: '現在不是下注階段' };
+    const p = game.players[seat];
+    if (!p || p.folded || p.allin) return { ok: false, error: '你無法行動' };
+    if (seat !== game.toActSeat) return { ok: false, error: '還沒輪到你' };
+
+    // 教學實戰版：真人玩家行動前記錄決策點（AI 由 aiAct 走同一 act()，但 isAI 會被跳過）
+    const logEntry = recordHandLog(game, seat, action, amount);
+
+        const evs = [];
+      switch (action) {
     case 'fold': { p.folded = true; evs.push({ type: 'fold', seat }); break; }
     case 'check': {
       if (p.betThisStreet < game.currentBet) return { ok: false, error: '需跟注，不能過牌' };
@@ -231,12 +292,13 @@ function act(game, seat, action, amount) {
       break;
     }
     default: return { ok: false, error: '未知行動' };
-  }
+      }
 
-  const res = settle(game, evs);
-  if (!res.done && res.next >= 0) game.toActSeat = res.next;
-  return { ok: true, events: evs, ...res };
-}
+      const res = settle(game, evs);
+      if (logEntry) res.verdict = logEntry;
+      if (!res.done && res.next >= 0) game.toActSeat = res.next;
+      return { ok: true, events: evs, ...res };
+    }
 
 // 下注回合收斂判斷；回傳 {done} 或 {done, next}
 function settle(game, evs) {
@@ -381,7 +443,7 @@ function aiAct(game, seat) {
   if (!p || p.folded || p.allin || game.phase !== 'betting') return { ok: false, error: 'AI 無法行動' };
   if (seat !== game.toActSeat) return { ok: false, error: '還沒輪到 AI' };
   const nOpponents = game.players.filter(x => !x.folded && x.seat !== seat).length;
-  const d = ai.aiDecide(p.hole, game.board, game.pot, game.currentBet, p.betThisStreet, p.stack, p.raiseCount || 0, nOpponents);
+    const d = ai.aiDecide(p.hole, game.board, game.pot, game.currentBet, p.betThisStreet, p.stack, p.raiseCount || 0, nOpponents, game.config.difficulty || 'normal');
   let r = act(game, seat, d.action, d.amount);
   if (!r.ok) {
     // 回退：能 check 就 check，否則 call，否則 fold
@@ -405,8 +467,9 @@ function snapshotFor(game, seat) {
     winners: game.winners, sidePots: game.sidePots || [], round: game.round,
     players: game.players.map(p => {
       const isSelf = seat >= 0 && p.seat === seat;
-      // 攤牌/結束時，未蓋牌者手牌公開，並附牌型名稱，方便展示比較
-      const reveal = atEnd && !p.folded && p.hole.length === 2;
+            // 攤牌/結束時，未蓋牌者手牌公開，並附牌型名稱，方便展示比較
+            // 教學實戰版：結束時翻開所有 AI 牌（含蓋牌），供玩家檢討
+            const reveal = atEnd && p.hole.length === 2 && (game.config.teaching ? !!p.isAI : !p.folded);
       return {
         seat: p.seat, name: p.name, stack: p.stack, bet: p.betThisStreet, betTotal: p.betTotal,
                 folded: p.folded, allin: p.allin, connected: p.connected, isOwner: p.isOwner, isAI: p.isAI,
@@ -417,7 +480,11 @@ function snapshotFor(game, seat) {
       };
     }),
     mySeat: seat,
-  };
+        // 教學實戰版：唯讀快照欄位，供伺服器在 roundEnd 時把真人玩家的決策檢討帶給客戶端
+                teaching: !!game.config.teaching,
+                difficulty: game.config.difficulty || 'normal',
+                handLog: game.handLog || [],
+      };
 }
 
 module.exports = {

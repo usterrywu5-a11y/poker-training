@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes">
+<title>德撲教學實戰 · 真人+AI 實戰學習</title>
+<style>
+:root{
+  --bg:#0f172a; --cardline:#1e293b; --name:#94a3b8; --ink:#e2e8f0; --felt:#14532d;
+  --gold:#f5c518; --red:#ef4444; --blue:#3b82f6; --ok:#4ade80; --bad:#fca5a5; --warn:#fbbf24;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Microsoft JhengHei",sans-serif; color:var(--ink);
+  min-height:100vh; background:
+    radial-gradient(900px 500px at 50% -8%, #134e31 0%, transparent 60%),
+    linear-gradient(180deg,#0b1220 0%,#111827 100%);}
+.wrap{max-width:640px; margin:0 auto; padding:14px 13px 60px;}
+nav{display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;}
+nav a{color:var(--name); text-decoration:none; font-size:12px; border:1px solid var(--cardline);
+  border-radius:999px; padding:5px 12px;}
+nav a.on{color:var(--gold); border-color:var(--gold);}
+nav .sp{flex:1;}
+header{display:flex; align-items:center; gap:10px;}
+.logo2{width:40px;height:40px;border-radius:11px; background:linear-gradient(135deg,#f5c518,#f97316);
+  display:flex;align-items:center;justify-content:center; font-size:20px; box-shadow:0 5px 16px rgba(245,197,24,.25);}
+header h1{font-size:18px; margin:0;}
+header .sub{font-size:12px; color:var(--name); margin-top:2px;}
+.hinttoggle{margin-left:auto; border:1px solid var(--gold); color:var(--gold); background:transparent;
+  border-radius:999px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;}
+
+.lobby{background:rgba(255,255,255,.04); border:1px solid var(--cardline); border-radius:16px; padding:16px; margin-top:12px;}
+.lobby h2{margin:0 0 12px; font-size:15px;}
+.field{margin-bottom:10px;}
+.field label{display:block; font-size:12px; color:var(--name); margin-bottom:4px;}
+.field input, .field select{width:100%; padding:10px; border-radius:10px; border:1px solid var(--cardline);
+  background:#0b1220; color:var(--ink); font-size:14px;}
+.row{display:flex; gap:8px;}
+.row .field{flex:1;}
+.btn{flex:1; border:none; border-radius:12px; padding:13px 6px; font-size:15px; font-weight:800; cursor:pointer; color:#fff;}
+.btn-primary{background:linear-gradient(135deg,#f5c518,#f97316); color:#0f172a;}
+.btn-ghost{background:#334155;}
+.btn:disabled{opacity:.4; pointer-events:none;}
+.diffnote{font-size:11.5px; color:#a7d8b8; margin:-4px 0 10px; line-height:1.5;}
+
+.felt{background:linear-gradient(180deg,#155e3a,#0e4a2b); border:1px solid #177a45; border-radius:20px; padding:14px 12px; margin-top:8px; display:none;}
+.felt h3{text-align:center; margin:0 0 8px; font-size:14px; color:#dcf5e5;}
+.felth{text-align:center; font-size:11.5px; color:#a7d8b8; letter-spacing:.3px; margin-bottom:6px;}
+.cards{display:flex; justify-content:center; gap:6px; min-height:60px;}
+.pcard{width:44px; height:63px; border-radius:8px; background:#f3f4f6; color:#0f172a;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; font-weight:800;
+  box-shadow:0 3px 9px rgba(0,0,0,.35); font-size:16px;}
+.pcard.red{color:#dc2626;}
+.pcard .suit{font-size:15px}
+.pcard.down{background:linear-gradient(135deg,#2563eb,#1e3a8a); color:rgba(255,255,255,.75); font-size:26px;}
+.pcard.small{width:34px; height:48px; font-size:12px;}
+.pot{text-align:center; font-size:13px; color:#cfffd9; margin:8px 0 4px;}
+.pot b{color:var(--gold); font-size:15px;}
+
+.players{display:flex; flex-direction:column; gap:6px; margin-top:8px;}
+.prow{display:flex; align-items:center; gap:8px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:8px 10px;}
+.prow.me{border-color:var(--gold);}
+.prow .pname{flex:1; font-size:13px; font-weight:700;}
+.prow .pname small{display:block; font-size:10.5px; color:var(--name); font-weight:400;}
+.prow .pchips{font-size:13px; color:var(--gold);}
+.prow .pbet{font-size:12px; color:#a7d8b8; min-width:52px; text-align:right;}
+.prow .pstatus{font-size:11px; color:var(--bad); min-width:40px; text-align:right;}
+.prow .pstatus.act{color:var(--gold);}
+.prow .pstatus.ok{color:var(--ok);}
+.prow .pcards{display:flex; gap:3px;}
+.prow .phand{font-size:11px; color:var(--gold); min-width:48px; text-align:right; font-weight:700;}
+
+.actions{display:flex; gap:8px; margin-top:11px; flex-wrap:wrap;}
+button{border:none; border-radius:12px; padding:14px 6px; font-size:15px; font-weight:800; cursor:pointer; color:#fff;}
+button:disabled{opacity:.4; pointer-events:none;}
+.bet-input{flex:1; min-width:90px; border:1px solid rgba(255,255,255,.18); border-radius:12px; padding:8px 12px;
+  font-size:15px; font-weight:700; background:rgba(0,0,0,.3); color:#fff; text-align:center; outline:none;}
+.bet-input:focus{border-color:var(--gold);}
+.btn-fold{background:#334155; flex:1;}
+.btn-call{background:linear-gradient(135deg,#2563eb,#1d4ed8); flex:1;}
+.btn-raise{background:linear-gradient(135deg,#16a34a,#15803d); flex:1;}
+.btn-allin{background:linear-gradient(135deg,#dc2626,#b91c1c); flex:1;}
+
+.hintbox{background:rgba(245,197,24,.10); border:1px solid rgba(245,197,24,.4); border-radius:12px;
+  padding:10px 12px; margin-top:10px; font-size:13px; line-height:1.6;}
+.hintbox .rec{font-weight:800; color:var(--gold);}
+.hintbox .rec.good{color:var(--ok);}
+.hintbox .rec.bad{color:var(--bad);}
+.hintbox .why{color:#dcf5e5; font-size:12px;}
+.hintbox .fb{margin-top:6px; padding-top:6px; border-top:1px dashed rgba(255,255,255,.15); font-size:12.5px;}
+.hintbox .fb.ok{color:var(--ok);}
+.hintbox .fb.no{color:var(--bad);}
+
+.msg{text-align:center; font-size:13.5px; margin-top:12px; line-height:1.7;}
+.msg b{color:var(--gold);}
+.log{background:rgba(255,255,255,.04); border:1px solid var(--cardline); border-radius:12px; padding:10px; margin-top:10px;
+  font-size:12px; color:var(--name); max-height:120px; overflow-y:auto;}
+.log div{padding:2px 0; border-top:1px solid rgba(255,255,255,.05);}
+
+.review{background:rgba(255,255,255,.05); border:1px solid var(--cardline); border-radius:14px; padding:12px; margin-top:12px;}
+.review h3{margin:0 0 8px; font-size:14px; color:var(--gold);}
+.rev{display:flex; gap:8px; align-items:baseline; padding:5px 0; border-top:1px solid rgba(255,255,255,.06); font-size:12.5px; line-height:1.5;}
+.rev .l{flex:0 0 52px; color:var(--name); font-size:11px;}
+.rev b{color:var(--ink);}
+.rev.ok{color:var(--ok);}
+.rev.no{color:var(--bad);}
+.rev.warn{color:var(--warn);}
+.stats{margin-top:8px; padding:8px 10px; background:rgba(0,0,0,.25); border-radius:10px; font-size:12.5px; color:#dcf5e5; line-height:1.6;}
+.stats b{color:var(--gold);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a href="index.html">📚 機率題庫</a>
+    <a href="duel.html">⚔️ 單局對練</a>
+    <a href="multiplayer.html">👥 多人對戰</a>
+    <a class="on" href="teaching.html">🎓 教學實戰</a>
+    <span class="sp"></span>
+  </nav>
+  <header>
+    <div class="logo2">🎓</div>
+    <div><h1>德撲教學實戰</h1><div class="sub">1 真人 + 2-3 AI 同桌，即時提示 + 每手決策檢討</div></div>
+    <button class="hinttoggle" id="hintToggle" onclick="toggleHints()">💡 提示：開</button>
+  </header>
+
+  <!-- 大廳 -->
+  <div class="lobby" id="lobby">
+    <h2>開始教學實戰</h2>
+    <div class="row">
+      <div class="field"><label>你的暱稱</label><input id="name" value="學員" maxlength="12"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>AI 難度</label><select id="difficulty">
+        <option value="beginner">初階（AI 只跟強牌，放水）</option>
+        <option value="normal" selected>中階（同多人版）</option>
+        <option value="pro">高階（多詐唬反加注）</option>
+      </select></div>
+      <div class="field"><label>AI 同桌數</label><select id="numAI"><option>2</option><option selected>3</option></select></div>
+    </div>
+    <div class="diffnote">初階適合新手練手牌判斷；中階接近實戰；高階考驗你抓詐唬與反加注。</div>
+    <div class="row">
+      <div class="field"><label>起始籌碼</label><select id="startStack"><option>500</option><option selected>1000</option><option>2000</option></select></div>
+      <div class="field"><label>盲注等級</label><select id="blinds"><option value="5,10">5/10</option><option value="10,20" selected>10/20</option><option value="25,50">25/50</option></select></div>
+    </div>
+    <div class="row">
+      <button class="btn btn-primary" onclick="createRoom()">開始教學實戰 ▶</button>
+    </div>
+  </div>
+
+  <!-- 牌桌 -->
+  <div class="felt" id="felt">
+    <h3 id="streetlab">等待開局</h3>
+    <div class="felth">公用牌</div>
+    <div class="cards" id="comboard"></div>
+    <div class="pot">底池 <b id="potv">0</b></div>
+    <div class="players" id="players"></div>
+    <div class="hintbox" id="hintbox" style="display:none"></div>
+    <div class="actions" id="controls"></div>
+    <div class="msg" id="msg"></div>
+    <div class="review" id="review" style="display:none"></div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<script src="/multiplayer/game-core.js"></script>
+<script>
+// ==================== 連線 ====================
+const WS_URL = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/';
+let ws = null, token = null, mySeat = -1, roomCode = null;
+let state = null;
+let hintsOn = true;
+let nextAt = 0, cdT = null;
+let handStartMy = 0;   // 每手開始時我的籌碼（算本手 +/-）
+let lastVerdict = null; // 最近一次行動的伺服器判定
+
+const PC = window.PokerCore;
+const SUITC = PC.SUITC; // ['♠','♥','♦','♣']
+const STREETN = ['翻牌前','翻牌','轉牌','河牌','攤牌'];
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+  ws.onopen = () => { if (token) ws.send(JSON.stringify({ type: 'resume', token })); };
+  ws.onmessage = (e) => handle(JSON.parse(e.data));
+  ws.onclose = () => { log('連線中斷，嘗試重連…'); setTimeout(connect, 1500); };
+  ws.onerror = () => ws.close();
+}
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+function handle(m) {
+  switch (m.type) {
+    case 'joined':
+      token = m.token; mySeat = m.seat; roomCode = m.roomCode;
+      document.getElementById('lobby').style.display = 'none';
+      document.getElementById('felt').style.display = 'block';
+      log('已進入教學房 ' + m.roomCode);
+      break;
+    case 'state':
+      state = m;
+      if (m.event && m.event.type === 'nextHandCountdown') nextAt = Date.now() + (m.event.ms | 0);
+      if (m.phase === 'roundEnd') {
+        if (!nextAt) nextAt = Date.now() + 20000;
+        startCD();
+      } else {
+        nextAt = 0; clearInterval(cdT); cdT = null;
+      }
+      // 新一手開始：記錄本手起始籌碼
+      if (m.phase === 'betting' && m.street === 0) {
+        const me = m.players[mySeat];
+        if (me) handStartMy = me.stack;
+      }
+      // 行動後判定（伺服器 verdict）
+      if (m.event && m.event.verdict) lastVerdict = m.event.verdict;
+      else if (m.event && m.event.type !== 'action') lastVerdict = null;
+      render();
+      break;
+    case 'error':
+      showError(m.message);
+      break;
+  }
+}
+
+// ==================== 卡片解析 ====================
+function parseCard(str) {
+  const rank = str.slice(0, -1), suit = str.slice(-1);
+  let r;
+  if (rank === 'A') r = 14; else if (rank === 'K') r = 13; else if (rank === 'Q') r = 12;
+  else if (rank === 'J') r = 11; else if (rank === 'T') r = 10; else r = +rank;
+  return { r, s: SUITC.indexOf(suit) };
+}
+function cardEl(c, small) {
+  const s = c.slice(-1), r = c.slice(0, -1);
+  const suit = SUITC.indexOf(s), red = suit === 1 || suit === 2;
+  return `<div class="pcard ${red?'red':''} ${small?'small':''}">${r}<span class="suit">${s}</span></div>`;
+}
+function cardBack(small) { return `<div class="pcard down ${small?'small':''}">?</div>`; }
+
+// ==================== 即時提示（客戶端算，教學房無公平性問題） ====================
+function buildHint() {
+  if (!state || !state.teaching) return null;
+  if (!(state.phase === 'betting' && state.toActSeat === mySeat)) return null;
+  const me = state.players[mySeat];
+  const hole = (me.hole || []).map(parseCard);
+  const board = (state.board || []).map(parseCard);
+  const nOpp = (state.players || []).filter(p => !p.folded && p.seat !== mySeat).length;
+  const e = PC.estimateVsRandom(hole, board, nOpp, 1200);
+  const eq = Math.round((e.win + e.tie) / e.n * 100);
+  const need = state.currentBet - me.bet;
+  const needPct = need > 0 ? Math.round(need / (state.pot + need) * 100) : 0;
+  let handName = '';
+  if (hole.length) { const sc = PC.evaluate7(hole.concat(board)); if (sc) handName = PC.catName(sc); }
+  const isDealer = state.dealerSeat === mySeat;
+  // 聽牌粗估
+  const suits = {}; hole.concat(board).forEach(c => suits[c.s] = (suits[c.s] || 0) + 1);
+  const flushDraw = Math.max(...Object.values(suits), 0) >= 4;
+
+  let rec = '', good = true;
+  if (need <= 0) {
+    if (eq >= 60) { rec = `建議下注/加注（EQ ${eq}% 牌強）`; good = true; }
+    else { rec = `建議過牌維持（EQ ${eq}%，牌力普通）`; good = true; }
+  } else {
+    if (eq >= needPct) { rec = `建議跟注（EQ ${eq}% ≥ 門檻 ${needPct}%，+EV）`; good = true; }
+    else {
+      rec = `建議棄牌（EQ ${eq}% < 門檻 ${needPct}%，-EV）`;
+      good = false;
+      if (handName && ['一對','兩對','三條','順子','同花','葫蘆','四條','同花順'].includes(handName)) {
+        rec = `你有 ${handName}，可跟注一搏（EQ ${eq}% 略低於門檻 ${needPct}%）`;
+        good = true;
+      }
+    }
+  }
+  const why = [];
+  why.push(`勝率 ${eq}% vs 門檻 ${needPct}%`);
+  if (isDealer) why.push('莊位·位置佳');
+  if (flushDraw) why.push('同花聽牌');
+  if (handName) why.push(handName);
+  return { rec, good, why: why.join(' · '), eq, needPct };
+}
+
+function renderHint() {
+  const box = document.getElementById('hintbox');
+  if (!hintsOn) { box.style.display = 'none'; return; }
+  const h = buildHint();
+  if (!h) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  let html = `<div class="rec ${h.good?'good':'bad'}">${h.rec}</div><div class="why">${h.why}</div>`;
+  if (lastVerdict) {
+    const ok = lastVerdict.verdict === '+EV';
+    html += `<div class="fb ${ok?'ok':'no'}">${ok?'✓':'✗'} 你剛這步：${lastVerdict.advice}</div>`;
+  }
+  box.innerHTML = html;
+}
+
+// ==================== 渲染 ====================
+function render() {
+  if (!state) return;
+  const s = state;
+  document.getElementById('msg').innerHTML = '';
+  document.getElementById('streetlab').textContent =
+    s.phase === 'roundEnd' ? '本局結束' : (STREETN[s.street] || '');
+  document.getElementById('potv').textContent = s.pot;
+  document.getElementById('comboard').innerHTML =
+    s.board.map(c => cardEl(c)).join('') || '<span style="color:#a7d8b8;font-size:12px">等待發牌</span>';
+
+  // 玩家列
+  const pl = s.players.map(p => {
+    const isMe = p.seat === mySeat;
+    const isAct = s.toActSeat === p.seat;
+    let status = '';
+    if (p.folded) status = '<span class="pstatus">蓋牌</span>';
+    else if (p.allin) status = '<span class="pstatus ok">全下</span>';
+    else if (isAct) status = '<span class="pstatus act">行動中</span>';
+    let cards = '';
+    if (isMe) cards = p.hole.map(c => cardEl(c, true)).join('');
+    else if (p.revealed) cards = p.hole.map(c => cardEl(c, true)).join(''); // 教學房結束翻所有 AI 牌
+    else if (!p.folded) cards = cardBack(true) + cardBack(true);
+    const hand = p.revealed && p.handName ? `<div class="phand">${p.handName}</div>` : '';
+    return `<div class="prow ${isMe?'me':''}">
+      <div class="pname">${p.name}${isMe?'（你）':''}<small>${p.seat===s.dealerSeat?'莊':''}${p.seat===s.smallBlindSeat?'小盲':''}${p.seat===s.bigBlindSeat?'大盲':''}</small></div>
+      <div class="pcards">${cards}</div>
+      <div class="pchips">${p.stack}</div>
+      <div class="pbet">${p.bet>0?'下注 '+p.bet:''}</div>
+      ${hand}
+      ${status}
+    </div>`;
+  }).join('');
+  document.getElementById('players').innerHTML = pl;
+
+  // 控制
+  let c = '';
+  if (s.phase === 'betting' && s.toActSeat === mySeat) {
+    const me = s.players[mySeat];
+    const need = s.currentBet - me.bet;
+    const canOpen = s.currentBet <= 0;
+    const defAmt = canOpen ? (s.bigBlind || 0) : (s.currentBet + (s.bigBlind || 0));
+    c += `<button class="btn-fold" onclick="doAct('fold')">棄牌</button>`;
+    c += `<button class="btn-call" onclick="doAct('${need>0?'call':'check'}')">${need>0?('跟注 '+need):'過牌'}</button>`;
+    c += `<input class="bet-input" id="betAmt" type="number" min="1" placeholder="金額" value="${defAmt||''}">`;
+    c += `<button class="btn-raise" onclick="doBet()">${canOpen?'下注':'加注'}</button>`;
+    c += `<button class="btn-allin" onclick="doAct('allin')">全下</button>`;
+  } else if (s.phase === 'betting') {
+    c = `<div style="flex:1;text-align:center;color:#a7d8b8;font-size:13px">等待其他玩家…</div>`;
+  } else if (s.phase === 'roundEnd') {
+    const w = s.winners.map(w => s.players[w.seat]);
+    const desc = w.map(x => `${x.name}${x.handName ? '（'+x.handName+'）' : ''}`).join('、');
+    const me = s.players[mySeat];
+    const delta = me ? me.stack - handStartMy : 0;
+    const dstr = delta >= 0 ? ('+'+delta) : String(delta);
+    c = `<div style="flex:1;text-align:center;color:var(--gold);font-size:14px">🏆 ${desc} 贏得底池</div>
+      <div style="flex:1;text-align:center;color:#a7d8b8;font-size:12px">本手 ${dstr} · 你的籌碼 ${me?me.stack:'-'}</div>
+      <button class="btn btn-primary" style="flex:1;margin-top:6px" onclick="nextHand()">下一局 ▶ <span id="cd" style="opacity:.75;font-size:13px"></span></button>
+      <div style="flex:1;text-align:center;color:#a7d8b8;font-size:12px">按下立即開始，或 ${Math.ceil(NEXT_DEFAULT_MS/1000)} 秒後自動開局</div>`;
+  }
+  document.getElementById('controls').innerHTML = c;
+
+  renderHint();
+  renderReview();
+}
+
+function renderReview() {
+  const r = document.getElementById('review');
+  const s = state;
+  if (!s || s.phase !== 'roundEnd') { r.style.display = 'none'; return; }
+  r.style.display = 'block';
+  let h = '<h3>📋 決策檢討</h3>';
+  const logs = (s.handLog || []).filter(l => l.verdict);
+  if (!logs.length) {
+    h += '<div class="rev"><span class="l">本手</span><span>無真人決策記錄</span></div>';
+  } else {
+    const actCn = { fold:'棄牌', check:'過牌', call:'跟注', bet:'下注', raise:'加注', allin:'全下' };
+    logs.forEach(l => {
+      const cls = l.verdict === '+EV' ? 'ok' : 'no';
+      h += `<div class="rev ${cls}"><span class="l">${STREETN[l.street]||''}</span><b>${actCn[l.action]||l.action}${l.amount?' '+l.amount:''}</b> ${l.advice}</div>`;
+    });
+  }
+  const w = s.winners.map(w => s.players[w.seat].name).join('、');
+  h += `<div class="rev"><span class="l">結果</span><span>🏆 ${w} 贏得底池</span></div>`;
+  if (s.stats) {
+    const acc = s.stats.total ? Math.round(s.stats.correct / s.stats.total * 100) : 0;
+    h += `<div class="stats">累計 <b>${s.stats.hands}</b> 手 · 淨 <b>${s.stats.net>=0?'+':''}${s.stats.net}</b> · 決策正確 <b>${s.stats.correct}/${s.stats.total}</b>（${acc}%）</div>`;
+  }
+  r.innerHTML = h;
+}
+
+function doAct(action) { send({ type: 'act', action }); }
+function doBet() {
+  const el = document.getElementById('betAmt');
+  if (!el) return;
+  const amt = Math.round(Number(el.value));
+  if (!amt || amt <= 0) { showError('請輸入有效的下注金額'); return; }
+  const canOpen = state.currentBet <= 0;
+  send({ type: 'act', action: canOpen ? 'bet' : 'raise', amount: amt });
+}
+function showError(msg) {
+  const m = document.getElementById('msg');
+  if (m) m.innerHTML = `<span style="color:var(--bad)">⚠ ${msg}</span>`;
+  log('⚠ ' + msg);
+}
+function toggleHints() {
+  hintsOn = !hintsOn;
+  document.getElementById('hintToggle').textContent = '💡 提示：' + (hintsOn ? '開' : '關');
+  renderHint();
+}
+
+const NEXT_DEFAULT_MS = 20000;
+function nextHand() { send({ type: 'nextHand' }); }
+function startCD() {
+  if (cdT) clearInterval(cdT);
+  cdT = setInterval(cdTick, 250);
+  cdTick();
+}
+function cdTick() {
+  const el = document.getElementById('cd');
+  if (!el) return;
+  const left = nextAt ? Math.max(0, Math.ceil((nextAt - Date.now()) / 1000)) : 0;
+  el.textContent = left ? left + 's' : '';
+}
+function createRoom() {
+  const [sb, bb] = document.getElementById('blinds').value.split(',').map(Number);
+  send({ type: 'createRoom', teaching: true,
+    name: document.getElementById('name').value || '學員',
+    difficulty: document.getElementById('difficulty').value,
+    numAI: +document.getElementById('numAI').value,
+    startStack: +document.getElementById('startStack').value, smallBlind: sb, bigBlind: bb });
+}
+function log(t) {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  d.textContent = t;
+  el.prepend(d);
+}
+
+connect();
+</script>
+</body>
+</html>

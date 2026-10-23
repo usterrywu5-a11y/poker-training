@@ -38,13 +38,18 @@ function genToken() { return crypto.randomBytes(16).toString('hex'); }
 
 function createRoom(owner) {
   const code = genRoomCode();
+  const teaching = !!owner.teaching;
+  const numAI = Math.max(1, Math.min(3, parseInt(owner.numAI, 10) || 2)); // 教學房 AI 同桌數（2-3）
+  const maxPlayers = teaching ? 1 + numAI : (owner.maxPlayers || 4);
   const room = {
     code,
     game: eng.createGame({
       smallBlind: owner.smallBlind || 10,
       bigBlind: owner.bigBlind || 20,
       startStack: owner.startStack || 1000,
-      maxPlayers: owner.maxPlayers || 4,
+      maxPlayers,
+      teaching,
+      difficulty: owner.difficulty || 'normal', // AI 難度：beginner / normal / pro
     }),
     ownerId: null,
     seats: new Map(), // seat -> {id, name, token, ws, connected, disconnectTimer}
@@ -53,6 +58,11 @@ function createRoom(owner) {
     aiTakeover: owner.aiTakeover !== false, // 斷線由 AI 代打（預設開）
     aiTimers: new Map(),             // seat -> setTimeout（AI 行動延遲）
     roundEndTimer: null,              // 攤牌後下一局倒數 timer
+    teaching,
+    difficulty: owner.difficulty || 'normal',
+    numAI,
+    stats: { hands: 0, net: 0, correct: 0, total: 0 }, // 教學房累計：手數/淨籌碼/決策正確數
+    handStartStack: 0,               // 每手開始時真人籌碼（算本手 +/-）
   };
   rooms.set(code, room);
   return room;
@@ -101,6 +111,7 @@ function broadcast(room, event) {
   for (const [seat, s] of room.seats) {
     if (!s.connected || !s.ws) continue;
     const snap = eng.snapshotFor(room.game, seat);
+    if (room.teaching && room.stats) snap.stats = room.stats;
     send(s.ws, { type: 'state', ...snap, event });
   }
 }
@@ -110,6 +121,7 @@ function sendSnapshot(room, seat) {
   const s = room.seats.get(seat);
   if (!s || !s.connected || !s.ws) return;
   const snap = eng.snapshotFor(room.game, seat);
+  if (room.teaching && room.stats) snap.stats = room.stats;
   send(s.ws, { type: 'state', ...snap, event: { type: 'resume' } });
 }
 
@@ -142,10 +154,20 @@ function maybeRunAI(room) {
 // 開局時補 AI 至設定人數（aiFill）
 function fillAI(room) {
   const g = room.game;
+  let k = 0;
   while (g.players.length < g.config.maxPlayers) {
-    const seat = eng.addPlayer(g, { id: 'ai-' + g.players.length, name: '🤖 AI', isAI: true });
-    room.seats.set(seat, { id: 'ai-' + seat, name: '🤖 AI', token: null, ws: null, connected: true, disconnectTimer: null, isAI: true });
+    const n = room.teaching ? ('🎓 AI' + (k + 1)) : '🤖 AI';
+    const seat = eng.addPlayer(g, { id: 'ai-' + g.players.length, name: n, isAI: true });
+    room.seats.set(seat, { id: 'ai-' + seat, name: n, token: null, ws: null, connected: true, disconnectTimer: null, isAI: true });
+    k++;
   }
+}
+
+// 教學房：記錄每手開始時真人籌碼，供 roundEnd 算本手 +/- 與累計淨籌碼
+function finalizeHandStart(room) {
+  const g = room.game;
+  const human = g.players.find(p => !p.isAI);
+  room.handStartStack = human ? human.stack : 0;
 }
 
 // 斷線：保留座位 60 秒，超時自動棄牌
@@ -161,26 +183,26 @@ function onDisconnect(room, seat) {
   broadcast(room, { type: 'playerDisconnected', seat });
 
   // 60 秒後若仍未重連 → AI 代打（若開啟）或自動棄牌
-    clearTimeout(s.disconnectTimer);
-    s.disconnectTimer = setTimeout(() => {
-      if (s.connected) return; // 已重連
-      const g = room.game;
-      const p = g.players[seat];
-      if (room.aiTakeover) {
-        // AI 代打該座位：只切 isAI/controlledBy 旗標，玩家物件全程保留
-        if (p) { p.isAI = true; p.controlledBy = 'ai'; }
-        broadcast(room, { type: 'aiTakeover', seat });
-        maybeRunAI(room);
-      } else if (g.phase === 'betting') {
-        const r = eng.forceFold(g, seat);
-        if (r.ok) {
-          broadcast(room, { type: 'autoFold', seat, events: r.events });
-          // 若牌局結束，自動開下一手
-          maybeNextHand(room);
-        }
+  clearTimeout(s.disconnectTimer);
+  s.disconnectTimer = setTimeout(() => {
+    if (s.connected) return; // 已重連
+    const g = room.game;
+    const p = g.players[seat];
+    if (room.aiTakeover) {
+      // AI 代打該座位：只切 isAI/controlledBy 旗標，玩家物件全程保留
+      if (p) { p.isAI = true; p.controlledBy = 'ai'; }
+      broadcast(room, { type: 'aiTakeover', seat });
+      maybeRunAI(room);
+    } else if (g.phase === 'betting') {
+      const r = eng.forceFold(g, seat);
+      if (r.ok) {
+        broadcast(room, { type: 'autoFold', seat, events: r.events });
+        // 若牌局結束，自動開下一手
+        maybeNextHand(room);
       }
-    }, KEEP_SEAT_MS);
-  }
+    }
+  }, KEEP_SEAT_MS);
+}
 
 // 重連：token 綁定座位，補發快照
 function onReconnect(room, seat, ws) {
@@ -190,19 +212,19 @@ function onReconnect(room, seat, ws) {
   s.connected = true;
   s.ws = ws;
   const p = room.game.players[seat];
-    if (p) {
-      p.connected = true;
-      // 若該座位正被 AI 代打，真人重連取回座位與剩餘籌碼
-      if (p.isAI && p.controlledBy === 'ai') {
-        p.isAI = false;
-        p.controlledBy = null;
-        broadcast(room, { type: 'aiTakeoverEnd', seat });
-      }
+  if (p) {
+    p.connected = true;
+    // 若該座位正被 AI 代打，真人重連取回座位與剩餘籌碼
+    if (p.isAI && p.controlledBy === 'ai') {
+      p.isAI = false;
+      p.controlledBy = null;
+      broadcast(room, { type: 'aiTakeoverEnd', seat });
     }
-    broadcast(room, { type: 'playerReconnected', seat });
-        sendSnapshot(room, seat);
-    return true;
   }
+  broadcast(room, { type: 'playerReconnected', seat });
+  sendSnapshot(room, seat);
+  return true;
+}
 
 // 立即開下一手（按鈕按下或倒數到）——若仍有 ≥2 人
 function startNextHand(room) {
@@ -214,28 +236,35 @@ function startNextHand(room) {
     return;
   }
   clearTimeout(room.roundEndTimer);
-  room.roundEndTimer = null;
-  eng.startHand(room.game);
-  broadcast(room, { type: 'handStart' });
-  maybeRunAI(room);
-}
-
-// 攤牌後：廣播倒數、開「下一局」按鈕、20 秒後自動開下一手
-function maybeNextHand(room) {
-  const g = room.game;
-  if (g.phase !== 'roundEnd') return;
-  const live = g.players.filter(p => p.stack > 0);
-  if (live.length < 2) {
-    broadcast(room, { type: 'gameOver', winners: g.players.filter(p => p.stack > 0).map(p => p.seat) });
-    return;
-  }
-  if (room.roundEndTimer) return; // 已在倒數，避免重複排程
-  broadcast(room, { type: 'nextHandCountdown', ms: NEXT_HAND_DELAY });
-  room.roundEndTimer = setTimeout(() => {
     room.roundEndTimer = null;
-    startNextHand(room);
-  }, NEXT_HAND_DELAY);
-}
+    eng.startHand(room.game);
+    if (room.teaching) finalizeHandStart(room);
+    broadcast(room, { type: 'handStart' });
+    maybeRunAI(room);
+  }
+
+  // 攤牌後：廣播倒數、開「下一局」按鈕、20 秒後自動開下一手
+  function maybeNextHand(room) {
+    const g = room.game;
+    if (g.phase !== 'roundEnd') return;
+    const live = g.players.filter(p => p.stack > 0);
+    if (live.length < 2) {
+      broadcast(room, { type: 'gameOver', winners: g.players.filter(p => p.stack > 0).map(p => p.seat) });
+      return;
+    }
+    // 教學房：累計本手淨籌碼與手數
+    if (room.teaching) {
+      const human = g.players.find(p => !p.isAI);
+      if (human) room.stats.net += human.stack - (room.handStartStack || human.stack);
+      room.stats.hands++;
+    }
+    if (room.roundEndTimer) return; // 已在倒數，避免重複排程
+    broadcast(room, { type: 'nextHandCountdown', ms: NEXT_HAND_DELAY });
+    room.roundEndTimer = setTimeout(() => {
+      room.roundEndTimer = null;
+      startNextHand(room);
+    }, NEXT_HAND_DELAY);
+  }
 
 // ---------- 訊息處理 ----------
 function handleMessage(ws, raw) {
@@ -258,6 +287,7 @@ function handleMessage(ws, raw) {
     case 'joinRoom': {
       const room = rooms.get(String(msg.roomCode || '').toUpperCase());
       if (!room) return send(ws, { type: 'error', message: '找不到此房號' });
+      if (room.teaching) return send(ws, { type: 'error', message: '教學房為單人練習，無法加入' });
       if (room.started) return send(ws, { type: 'error', message: '牌局已開始，無法加入' });
       if (room.seats.size >= room.game.config.maxPlayers) return send(ws, { type: 'error', message: '座位已滿' });
       const token = genToken();
@@ -287,27 +317,34 @@ function handleMessage(ws, raw) {
       break;
     }
     case 'start': {
-          const room = rooms.get(ws.roomCode);
-          if (!room) return send(ws, { type: 'error', message: '不在房間內' });
-          const s = room.seats.get(ws.seat);
-          if (!s || s.id !== room.ownerId) return send(ws, { type: 'error', message: '只有房主能開局' });
-          if (room.game.players.length < 1) return send(ws, { type: 'error', message: '至少需要 1 名玩家' });
-          // 人數不足由 AI 補位：補至設定人數
-          if (room.aiFill) fillAI(room);
-          if (room.game.players.length < 2) return send(ws, { type: 'error', message: '至少需要 2 名玩家' });
-          room.started = true;
-          eng.startGame(room.game);
-          broadcast(room, { type: 'gameStart' });
-          maybeRunAI(room);
-          break;
-        }
+      const room = rooms.get(ws.roomCode);
+      if (!room) return send(ws, { type: 'error', message: '不在房間內' });
+      const s = room.seats.get(ws.seat);
+      if (!s || s.id !== room.ownerId) return send(ws, { type: 'error', message: '只有房主能開局' });
+      if (room.game.players.length < 1) return send(ws, { type: 'error', message: '至少需要 1 名玩家' });
+      // 人數不足由 AI 補位：補至設定人數（教學房一律補 AI 同桌）
+            if (room.aiFill || room.teaching) fillAI(room);
+      if (room.game.players.length < 2) return send(ws, { type: 'error', message: '至少需要 2 名玩家' });
+            room.started = true;
+            if (room.teaching) room.stats = { hands: 0, net: 0, correct: 0, total: 0 };
+            eng.startGame(room.game);
+            if (room.teaching) finalizeHandStart(room);
+            broadcast(room, { type: 'gameStart' });
+            maybeRunAI(room);
+            break;
+    }
     case 'act': {
       const room = rooms.get(ws.roomCode);
       if (!room) return send(ws, { type: 'error', message: '不在房間內' });
       const seat = ws.seat;
       const r = eng.act(room.game, seat, msg.action, msg.amount);
       if (!r.ok) return send(ws, { type: 'error', message: r.error });
-      broadcast(room, { type: 'action', events: r.events });
+      // 教學房：真人決策點累計正確率
+      if (room.teaching && r.verdict) {
+        room.stats.total++;
+        if (r.verdict.verdict === '+EV') room.stats.correct++;
+      }
+      broadcast(room, { type: 'action', events: r.events, verdict: r.verdict || null });
       if (room.game.phase === 'roundEnd') maybeNextHand(room);
       else maybeRunAI(room);
       break;
