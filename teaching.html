@@ -310,13 +310,14 @@ function render() {
     const isMe = p.seat === mySeat;
     const isAct = s.toActSeat === p.seat;
     let status = '';
-    if (p.folded) status = '<span class="pstatus">蓋牌</span>';
+    if (p.eliminated) status = '<span class="pstatus">淘汰</span>';
+    else if (p.folded) status = '<span class="pstatus">蓋牌</span>';
     else if (p.allin) status = '<span class="pstatus ok">全下</span>';
     else if (isAct) status = '<span class="pstatus act">行動中</span>';
     let cards = '';
     if (isMe) cards = p.hole.map(c => cardEl(c, true)).join('');
     else if (p.revealed) cards = p.hole.map(c => cardEl(c, true)).join(''); // 教學房結束翻所有 AI 牌
-    else if (!p.folded) cards = cardBack(true) + cardBack(true);
+    else if (!p.folded && !p.eliminated) cards = cardBack(true) + cardBack(true);
     const hand = p.revealed && p.handName ? `<div class="phand">${p.handName}</div>` : '';
     return `<div class="prow ${isMe?'me':''}">
       <div class="pname">${p.name}${isMe?'（你）':''}<small>${p.seat===s.dealerSeat?'莊':''}${p.seat===s.smallBlindSeat?'小盲':''}${p.seat===s.bigBlindSeat?'大盲':''}</small></div>

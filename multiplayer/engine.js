@@ -72,7 +72,8 @@ function removePlayer(game, pid) {
 
 // ---------- 開局 ----------
 function _after(seat, n) { return (seat + 1) % n; }
-function activePlayers(game) { return game.players.filter(p => !p.folded); }
+// 在局玩家：未蓋牌且「有投入本手籌碼或仍可行動」——排除出局玩家（allin 且本手未投入）
+function activePlayers(game) { return game.players.filter(p => !p.folded && !(p.allin && p.betTotal === 0)); }
 
 // 自 fromSeat 之「下一位」起，找出下一個「未蓋、未全下、有籌碼」的玩家座位
 function nextActionable(game, fromSeat) {
@@ -307,6 +308,11 @@ function recordHandLog(game, seat, action, amount) {
 function settle(game, evs) {
   const live = activePlayers(game);
 
+  // 沒有人在局（全蓋或全出局）→ 無贏家，直接結束
+  if (live.length === 0) {
+    game.phase = 'roundEnd';
+    return { done: true };
+  }
   // 只剩一人未蓋 → 收池
   if (live.length === 1) {
     const w = live[0];
@@ -481,7 +487,8 @@ function snapshotFor(game, seat) {
       return {
         seat: p.seat, name: p.name, stack: p.stack, bet: p.betThisStreet, betTotal: p.betTotal,
                 folded: p.folded, allin: p.allin, connected: p.connected, isOwner: p.isOwner, isAI: p.isAI,
-        holeCount: isSelf ? p.hole.length : (p.folded ? 0 : 2),
+        holeCount: p.hole.length, // 精確手牌張數（出局玩家為 0）
+        eliminated: p.allin && p.betTotal === 0 && p.hole.length === 0, // 出局/破產（不發牌、不該顯示牌背）
         revealed: reveal,
         hole: (isSelf || reveal ? p.hole : []).map(c => core.cardStr(c)),
         handName: reveal ? (() => { const sc = core.evaluate7([...p.hole, ...game.board]); return sc ? core.catName(sc) : null; })() : null,

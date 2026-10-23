@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test-engine.js && node test-integration.js && node test-disconnect.js && node test-ai.js && node test-ai-integration.js && node test-estimate.js && node test-phase5.js && node test-ranks.js && node test-handlog-smoke.js && node test-teaching.js && node test-equity-exact.js && node test-sidepot-winners.js"
+    "test": "node test-engine.js && node test-integration.js && node test-disconnect.js && node test-ai.js && node test-ai-integration.js && node test-estimate.js && node test-phase5.js && node test-ranks.js && node test-handlog-smoke.js && node test-teaching.js && node test-equity-exact.js && node test-sidepot-winners.js && node test-eliminated-player.js"
   },
   "dependencies": {
     "ws": "^8.22.0"
