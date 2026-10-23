@@ -170,19 +170,22 @@ function recordHandLog(game, seat, action, amount) {
   const needPercent = need > 0 ? need / (game.pot + need) * 100 : 0;
 
   // 對每個未蓋牌對手估算勝率後取平均
-  const opps = game.players.filter(x => !x.folded && x.seat !== seat && x.hole.length === 2);
-  let eqPercent = 0;
-  if (opps.length > 0) {
-    let sum = 0;
-    for (const o of opps) {
-      const e = core.estimate(p.hole, o.hole, game.board);
-      sum += (e.win + e.tie) / e.n * 100;
+    const opps = game.players.filter(x => !x.folded && x.seat !== seat && x.hole.length === 2);
+    let eqPercent = 0;
+    if (opps.length > 0) {
+      let sum = 0;
+      for (const o of opps) {
+        // 教學房伺服器端已知所有底牌：翻牌/轉牌/河牌用精確窮舉（快且無抽樣誤差），
+        // 翻牌前組合數過大則退回輕量蒙特卡羅（N=200）。
+        const ex = core.equityExact(p.hole, o.hole, game.board);
+        const e = ex || core.estimate(p.hole, o.hole, game.board, 200);
+        sum += (e.win + e.tie) / e.n * 100;
+      }
+      eqPercent = sum / opps.length;
+    } else {
+      const e = core.estimateVsRandom(p.hole, game.board, 1, 200);
+      eqPercent = (e.win + e.tie) / e.n * 100;
     }
-    eqPercent = sum / opps.length;
-  } else {
-    const e = core.estimateVsRandom(p.hole, game.board, 1);
-    eqPercent = (e.win + e.tie) / e.n * 100;
-  }
 
   // 判定 +EV / -EV：跟注/過牌用「勝率 ≥ 底池賠率」；
   // 下注/加注屬主動進攻，需勝率明顯高於底池賠率（+15%）才算 +EV。

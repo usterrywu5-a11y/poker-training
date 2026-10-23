@@ -148,10 +148,42 @@
     return { win, tie, n: N };
   }
 
+  // ==================== 精確勝率（已知對手手牌） ====================
+    // equityExact(hx, ax, board): 對「已知對手手牌」窮舉所有剩餘公用牌組合，
+    // 得到精確勝率（含平手）。僅在剩餘組合數可接受時回傳 {win, tie, n}，
+    // 否則（翻牌前/翻牌需補 2-5 張，組合數過大）回傳 null，由呼叫端退回蒙特卡羅。
+    // 適用於伺服器端已知所有底牌的教學房：轉牌/河牌組合數少（≤44），
+    // 精確窮舉比蒙特卡羅更快且無抽樣誤差。
+    function equityExact(hx, ax, board) {
+      const rem = unseen(hx, ax, board);
+      const need = 5 - board.length;
+      // 組合數 = C(rem.length, need)。翻牌前 need=5、翻牌 need=2 時過大，退回蒙特卡羅。
+      if (need > 1) return null;
+      let win = 0, tie = 0, total = 0;
+      const n = rem.length;
+      if (need === 0) {
+        const hs = evaluate7(hx.concat(board));
+        const as = evaluate7(ax.concat(board));
+        const d = cmpScores(hs, as);
+        if (d > 0) win++; else if (d === 0) tie++;
+        total = 1;
+      } else { // need === 1（轉牌）
+        for (let i = 0; i < n; i++) {
+          const b = board.concat(rem[i]);
+          const hs = evaluate7(hx.concat(b));
+          const as = evaluate7(ax.concat(b));
+          const d = cmpScores(hs, as);
+          if (d > 0) win++; else if (d === 0) tie++;
+          total++;
+        }
+      }
+      return { win, tie, n: total };
+    }
+
   return {
     SUITC, RANKC, STREETN, CATN,
     deckAll, shuffle, cardKey, cardStr, cardRed,
     unseen, drawUnseen, evaluate5, evaluate7, cmpScores, catName, estimate,
-    estimateVsRandom,
+    estimateVsRandom, equityExact,
   };
 });

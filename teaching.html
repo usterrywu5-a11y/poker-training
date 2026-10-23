@@ -246,7 +246,7 @@ function buildHint() {
   const hole = (me.hole || []).map(parseCard);
   const board = (state.board || []).map(parseCard);
   const nOpp = (state.players || []).filter(p => !p.folded && p.seat !== mySeat).length;
-  const e = PC.estimateVsRandom(hole, board, nOpp, 1200);
+  const e = PC.estimateVsRandom(hole, board, nOpp, 200); // 提示用輕量估算，避免客戶端卡頓
   const eq = Math.round((e.win + e.tie) / e.n * 100);
   const need = state.currentBet - me.bet;
   const needPct = need > 0 ? Math.round(need / (state.pot + need) * 100) : 0;

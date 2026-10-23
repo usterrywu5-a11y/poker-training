@@ -48,7 +48,7 @@
     function aiDecide(hand, board, pot, currentBet, aiIn, aiChips, raiseCount, nOpponents, difficulty) {
         const diff = difficulty || 'normal';
         const sc = core.evaluate7(hand.concat(board));
-        const e = core.estimateVsRandom(hand, board, nOpponents);
+        const e = core.estimateVsRandom(hand, board, nOpponents, 200); // AI 決策用輕量估算（夠用就好）
         const eq = (e.win + e.tie) / e.n * 100;
         const need = Math.max(0, currentBet - aiIn);
         const needPct = need > 0 ? need / (pot + need) * 100 : 0;
