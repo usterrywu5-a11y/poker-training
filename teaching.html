@@ -195,6 +195,8 @@ function handle(m) {
       document.getElementById('lobby').style.display = 'none';
       document.getElementById('felt').style.display = 'block';
       log('已進入教學房 ' + m.roomCode);
+      // 教學房為單人練習：入房即自動開局（AI 補位 + 發牌），不等「開始遊戲」按鈕
+      send({ type: 'start' });
       break;
     case 'state':
       state = m;
